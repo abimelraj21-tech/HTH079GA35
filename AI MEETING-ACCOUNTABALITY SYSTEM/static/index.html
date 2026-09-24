@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enterprise AI Meeting Auditor & Accountability Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f7ff',
+              100: '#e0effe',
+              500: '#0284c7',
+              600: '#0369a1',
+              700: '#075985',
+              900: '#0c4a6e',
+            }
+          },
+          animation: {
+            'glow-pulse': 'glow 2s ease-in-out infinite',
+          },
+          keyframes: {
+            glow: {
+              '0%, 100%': { backgroundColor: 'rgba(254, 240, 138, 0.4)', borderColor: '#ca8a04' },
+              '50%': { backgroundColor: 'rgba(253, 224, 71, 0.75)', borderColor: '#eab308' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .transcript-line:hover {
+      background-color: #f8fafc;
+    }
+    .line-highlight {
+      background-color: #fef08a !important;
+      border-left: 4px solid #ca8a04 !important;
+      transition: all 0.3s ease;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans">
+
+  <!-- Top Navigation Bar -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="h-10 w-10 rounded-xl bg-brand-600 flex items-center justify-center text-white shadow-md">
+          <i data-lucide="shield-check" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="text-xl font-bold tracking-tight text-slate-900">AI Meeting Accountability System</h1>
+            <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+              Zero-Hallucination Auditor
+            </span>
+          </div>
+          <p class="text-xs text-slate-500">Verifiable line-indexed citations • Cross-meeting continuity & carryovers</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2">
+        <button onclick="openNewMeetingModal()" class="px-3.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-sm font-medium flex items-center space-x-1.5 shadow-sm transition">
+          <i data-lucide="plus-circle" class="w-4 h-4"></i>
+          <span>Process Meeting</span>
+        </button>
+
+        <div class="relative inline-block text-left">
+          <button onclick="toggleExportMenu()" class="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-medium flex items-center space-x-1 transition">
+            <i data-lucide="download" class="w-4 h-4 text-slate-500"></i>
+            <span>Export</span>
+            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400"></i>
+          </button>
+          <div id="exportMenu" class="hidden absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+            <div class="py-1">
+              <a href="/api/export/markdown" target="_blank" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center space-x-2">
+                <i data-lucide="file-text" class="w-4 h-4 text-brand-600"></i>
+                <span>Markdown Report</span>
+              </a>
+              <a href="/api/export/csv" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center space-x-2">
+                <i data-lucide="table" class="w-4 h-4 text-emerald-600"></i>
+                <span>CSV Task Sheet</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <button onclick="resetData()" title="Reset to sample dataset" class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition">
+          <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-6">
+
+    <!-- KPI Metrics Cards -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+        <p class="text-xs font-medium text-slate-500">Total Action Items</p>
+        <p id="statTotal" class="text-2xl font-bold text-slate-900 mt-1">0</p>
+        <span class="text-[11px] text-slate-400">Across all meetings</span>
+      </div>
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+        <p class="text-xs font-medium text-emerald-600">Resolved</p>
+        <p id="statResolved" class="text-2xl font-bold text-emerald-700 mt-1">0</p>
+        <span class="text-[11px] text-emerald-500 font-medium">Completed & verified</span>
+      </div>
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+        <p class="text-xs font-medium text-sky-600">Carried Over / Updated</p>
+        <p id="statCarried" class="text-2xl font-bold text-sky-700 mt-1">0</p>
+        <span class="text-[11px] text-sky-500">Cross-meeting continuity</span>
+      </div>
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+        <p class="text-xs font-medium text-amber-600">Unassigned Items</p>
+        <p id="statUnassigned" class="text-2xl font-bold text-amber-700 mt-1">0</p>
+        <span class="text-[11px] text-amber-500">Action item owners missing</span>
+      </div>
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+        <p class="text-xs font-medium text-purple-600">Decisions Logged</p>
+        <p id="statDecisions" class="text-2xl font-bold text-purple-700 mt-1">0</p>
+        <span class="text-[11px] text-purple-500">Grounded in transcript</span>
+      </div>
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+        <p class="text-xs font-medium text-rose-600">Unresolved Issues</p>
+        <p id="statUnresolved" class="text-2xl font-bold text-rose-700 mt-1">0</p>
+        <span class="text-[11px] text-rose-500">Active project blockers</span>
+      </div>
+    </div>
+
+    <!-- Split Screen: Left (Tracker & Logs) / Right (Transcript & Citation Inspector) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+      <!-- LEFT COLUMN: Main Dashboard Tabs (7 cols) -->
+      <div class="lg:col-span-7 space-y-4">
+        
+        <!-- Tab Navigation -->
+        <div class="bg-white rounded-xl border border-slate-200 p-1 flex items-center space-x-1 shadow-xs">
+          <button onclick="switchTab('tasks')" id="tabBtn-tasks" class="tab-btn px-4 py-2 text-sm font-semibold rounded-lg bg-brand-50 text-brand-700 transition flex items-center space-x-2">
+            <i data-lucide="check-square" class="w-4 h-4"></i>
+            <span>Action Items & Audit</span>
+          </button>
+          <button onclick="switchTab('decisions')" id="tabBtn-decisions" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center space-x-2">
+            <i data-lucide="file-badge" class="w-4 h-4"></i>
+            <span>Decisions Log</span>
+          </button>
+          <button onclick="switchTab('unresolved')" id="tabBtn-unresolved" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center space-x-2">
+            <i data-lucide="alert-circle" class="w-4 h-4"></i>
+            <span>Unresolved Issues</span>
+          </button>
+          <button onclick="switchTab('prompt')" id="tabBtn-prompt" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center space-x-2">
+            <i data-lucide="sparkles" class="w-4 h-4"></i>
+            <span>Prompt Rules</span>
+          </button>
+        </div>
+
+        <!-- TAB CONTENT 1: ACTION ITEMS -->
+        <div id="tabContent-tasks" class="space-y-3">
+          <!-- Filters & Search -->
+          <div class="bg-white p-3 rounded-xl border border-slate-200 flex flex-wrap gap-2 items-center justify-between">
+            <div class="flex items-center space-x-2 flex-1 min-w-[200px]">
+              <i data-lucide="search" class="w-4 h-4 text-slate-400"></i>
+              <input type="text" id="taskSearchInput" onkeyup="filterTasks()" placeholder="Search task, owner, or status..." class="text-sm outline-none w-full bg-transparent text-slate-800 placeholder-slate-400">
+            </div>
+            <div class="flex items-center space-x-1.5 text-xs">
+              <span class="text-slate-500 font-medium">Filter:</span>
+              <button onclick="setFilter('ALL')" id="filter-ALL" class="px-2 py-1 rounded bg-slate-200 text-slate-800 font-semibold">All</button>
+              <button onclick="setFilter('Resolved')" id="filter-Resolved" class="px-2 py-1 rounded hover:bg-slate-100 text-slate-600">Resolved</button>
+              <button onclick="setFilter('Carried')" id="filter-Carried" class="px-2 py-1 rounded hover:bg-slate-100 text-slate-600">Carried Over</button>
+              <button onclick="setFilter('Unassigned')" id="filter-Unassigned" class="px-2 py-1 rounded hover:bg-slate-100 text-slate-600">Unassigned</button>
+            </div>
+          </div>
+
+          <!-- Tasks Table Container -->
+          <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-sm">
+                <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs font-semibold uppercase tracking-wider">
+                  <tr>
+                    <th class="py-3 px-4">Task</th>
+                    <th class="py-3 px-3">Owner</th>
+                    <th class="py-3 px-3">Deadline</th>
+                    <th class="py-3 px-3">Status</th>
+                    <th class="py-3 px-4">Verifiable Audit Trail</th>
+                  </tr>
+                </thead>
+                <tbody id="tasksTableBody" class="divide-y divide-slate-100">
+                  <!-- Injected via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB CONTENT 2: DECISIONS LOG -->
+        <div id="tabContent-decisions" class="hidden space-y-3">
+          <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
+            <h3 class="text-sm font-bold text-slate-900 mb-3 flex items-center space-x-2">
+              <i data-lucide="check-circle-2" class="w-4 h-4 text-purple-600"></i>
+              <span>Audited Formal Decisions</span>
+            </h3>
+            <p class="text-xs text-slate-500 mb-4">Every decision logged is strictly cited to line occurrences across meetings.</p>
+            <div id="decisionsList" class="space-y-2.5">
+              <!-- Injected via JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB CONTENT 3: UNRESOLVED ISSUES -->
+        <div id="tabContent-unresolved" class="hidden space-y-3">
+          <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
+            <h3 class="text-sm font-bold text-slate-900 mb-3 flex items-center space-x-2">
+              <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-600"></i>
+              <span>Open Blockers & Unresolved Questions</span>
+            </h3>
+            <p class="text-xs text-slate-500 mb-4">Items explicitly mentioned as undecided or unassigned during discussion.</p>
+            <div id="unresolvedList" class="space-y-2.5">
+              <!-- Injected via JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB CONTENT 4: PROMPT & AUDITOR RULES -->
+        <div id="tabContent-prompt" class="hidden space-y-3">
+          <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-slate-900 flex items-center space-x-2">
+                <i data-lucide="code" class="w-4 h-4 text-brand-600"></i>
+                <span>Strict Zero-Hallucination System Prompt</span>
+              </h3>
+              <span class="text-xs bg-brand-50 text-brand-700 px-2.5 py-1 rounded-full font-medium">Enterprise Guardrail</span>
+            </div>
+            <pre id="promptDisplay" class="bg-slate-900 text-slate-100 p-4 rounded-lg text-xs overflow-x-auto leading-relaxed font-mono custom-scrollbar"></pre>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT COLUMN: Transcript Citation Inspector (5 cols) -->
+      <div class="lg:col-span-5 space-y-4">
+        
+        <!-- Inspector Card -->
+        <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs sticky top-20">
+          <div class="bg-slate-900 text-white p-3.5 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="search-check" class="w-4 h-4 text-amber-400"></i>
+              <span class="text-sm font-semibold">Transcript Citation Inspector</span>
+            </div>
+            <!-- Meeting Selector dropdown -->
+            <select id="meetingSelect" onchange="onMeetingSelectChange()" class="bg-slate-800 text-slate-200 text-xs px-2.5 py-1 rounded border border-slate-700 outline-none">
+              <!-- Injected via JS -->
+            </select>
+          </div>
+
+          <!-- Citation context notification banner -->
+          <div id="citationBanner" class="bg-amber-50 border-b border-amber-200 p-3 hidden">
+            <div class="flex items-start justify-between">
+              <div>
+                <p class="text-xs font-bold text-amber-900 flex items-center space-x-1.5">
+                  <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-600"></i>
+                  <span id="bannerTitle">Verifiable Evidence Citation</span>
+                </p>
+                <p id="bannerText" class="text-xs text-amber-800 mt-0.5 leading-snug"></p>
+              </div>
+              <button onclick="clearCitationHighlight()" class="text-amber-500 hover:text-amber-700">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Transcript Content Box -->
+          <div id="transcriptViewBox" class="p-4 max-h-[560px] overflow-y-auto space-y-1 font-mono text-xs leading-relaxed custom-scrollbar bg-slate-50/50">
+            <!-- Injected via JS -->
+          </div>
+
+          <div class="p-3 bg-white border-t border-slate-200 text-[11px] text-slate-500 flex items-center justify-between">
+            <span>💡 Click any citation badge in the table to jump to source line.</span>
+            <span id="transcriptLineCount" class="font-semibold text-slate-700">0 Lines</span>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Modal: Process New Meeting -->
+  <div id="newMeetingModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center space-x-2">
+          <div class="p-2 bg-brand-50 rounded-lg text-brand-600">
+            <i data-lucide="file-plus" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-900">Process Meeting Transcript</h3>
+            <p class="text-xs text-slate-500">Auto-indexes lines and audits action items & carryovers</p>
+          </div>
+        </div>
+        <button onclick="closeNewMeetingModal()" class="text-slate-400 hover:text-slate-600">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Meeting Title</label>
+            <input type="text" id="newMeetingTitle" placeholder="e.g. Sprint Planning #4" class="w-full text-xs p-2.5 rounded-lg border border-slate-300 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Date</label>
+            <input type="date" id="newMeetingDate" class="w-full text-xs p-2.5 rounded-lg border border-slate-300 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-xs font-semibold text-slate-700">Raw Meeting Transcript</label>
+            <button onclick="loadSampleText()" class="text-xs text-brand-600 hover:text-brand-800 font-medium">Load Example Text</button>
+          </div>
+          <textarea id="newMeetingTranscript" rows="6" placeholder="Alex: Let's discuss our progress...&#10;Priya: I will complete the security checklist by Oct 18th.&#10;Rahul: The database migration is unassigned for now." class="w-full text-xs font-mono p-3 rounded-lg border border-slate-300 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 custom-scrollbar"></textarea>
+          <p class="text-[11px] text-slate-400 mt-1">If lines are not numbered [L1], [L2], the system will automatically index them for verifiable citations.</p>
+        </div>
+
+        <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+          <label class="flex items-center space-x-2 text-xs text-slate-700 font-medium cursor-pointer">
+            <input type="checkbox" id="autoAuditCheckbox" checked class="rounded text-brand-600 focus:ring-brand-500">
+            <span>Automatically extract action items, decisions, and line citations using Auditor Engine</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+        <button onclick="closeNewMeetingModal()" class="px-4 py-2 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-50">Cancel</button>
+        <button onclick="submitNewMeeting()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-medium flex items-center space-x-1.5 shadow-sm">
+          <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+          <span>Process & Audit Meeting</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let dashboardData = {
+      metrics: {},
+      tasks: [],
+      decisions: [],
+      unresolved_issues: [],
+      meetings: []
+    };
+    let currentFilter = 'ALL';
+    let currentMeetingId = 'Meeting_01';
+
+    // Status colors
+    function getStatusBadge(status) {
+      if (status === 'Resolved') {
+        return '<span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">Resolved</span>';
+      } else if (status.includes('Carried Over') || status.includes('Updated')) {
+        return '<span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-sky-100 text-sky-800 border border-sky-300">Carried Over</span>';
+      } else if (status === 'Blocked') {
+        return '<span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-rose-100 text-rose-800 border border-rose-300">Blocked</span>';
+      } else {
+        return '<span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 border border-amber-300">New</span>';
+      }
+    }
+
+    async function fetchDashboard() {
+      try {
+        const res = await fetch('/api/dashboard');
+        dashboardData = await res.json();
+        renderMetrics();
+        renderTasks();
+        renderDecisions();
+        renderUnresolved();
+        renderMeetingSelector();
+        renderTranscriptView(currentMeetingId);
+        lucide.createIcons();
+      } catch (err) {
+        console.error("Failed to fetch dashboard data:", err);
+      }
+    }
+
+    async function fetchPrompt() {
+      try {
+        const res = await fetch('/api/prompt');
+        const data = await res.json();
+        document.getElementById('promptDisplay').innerText = data.prompt;
+      } catch (err) {
+        console.error("Failed to fetch prompt:", err);
+      }
+    }
+
+    function renderMetrics() {
+      const m = dashboardData.metrics || {};
+      document.getElementById('statTotal').innerText = m.total_tasks || 0;
+      document.getElementById('statResolved').innerText = m.resolved_tasks || 0;
+      document.getElementById('statCarried').innerText = m.carried_over_tasks || 0;
+      document.getElementById('statUnassigned').innerText = m.unassigned_tasks || 0;
+      document.getElementById('statDecisions').innerText = m.total_decisions || 0;
+      document.getElementById('statUnresolved').innerText = m.total_unresolved || 0;
+    }
+
+    function renderTasks() {
+      const tbody = document.getElementById('tasksTableBody');
+      tbody.innerHTML = '';
+
+      const query = (document.getElementById('taskSearchInput').value || '').toLowerCase();
+
+      const filtered = (dashboardData.tasks || []).filter(t => {
+        // text search
+        const matchSearch = t.task.toLowerCase().includes(query) ||
+                            t.owner.toLowerCase().includes(query) ||
+                            t.status.toLowerCase().includes(query);
+        if (!matchSearch) return false;
+
+        // category filter
+        if (currentFilter === 'Resolved') return t.status === 'Resolved';
+        if (currentFilter === 'Carried') return t.status.includes('Carried Over') || t.status.includes('Updated');
+        if (currentFilter === 'Unassigned') return t.owner === 'Unassigned' || t.owner === 'None';
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400 text-xs italic">No matching action items found.</td></tr>`;
+        return;
+      }
+
+      filtered.forEach(task => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50/70 transition border-b border-slate-100";
+
+        // Audit Trail Badges
+        const trailHtml = task.audit_trail.map((item, idx) => {
+          const isLatest = idx === task.audit_trail.length - 1;
+          const label = `${item.meeting_id}:${item.source_line}`;
+          return `
+            <button onclick="highlightCitation('${item.meeting_id}', '${item.source_line}', '${task.task.replace(/'/g, "\\'")}', '${item.action}')" 
+              class="inline-flex items-center space-x-1 px-2 py-0.5 text-[11px] rounded font-mono font-medium ${
+                isLatest ? 'bg-brand-100 text-brand-800 border border-brand-300 hover:bg-brand-200' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              } transition">
+              <i data-lucide="tag" class="w-3 h-3 text-brand-600"></i>
+              <span>${label}</span>
+            </button>
+          `;
+        }).join('<span class="text-slate-300 mx-1">➔</span>');
+
+        const ownerPill = task.owner === 'Unassigned' || task.owner === 'None'
+          ? '<span class="text-amber-600 font-semibold italic text-xs">Unassigned</span>'
+          : `<span class="font-medium text-slate-800 text-xs">${task.owner}</span>`;
+
+        tr.innerHTML = `
+          <td class="py-3 px-4 font-semibold text-slate-900">${task.task}</td>
+          <td class="py-3 px-3">${ownerPill}</td>
+          <td class="py-3 px-3 text-xs text-slate-600">${task.deadline}</td>
+          <td class="py-3 px-3">
+            <select onchange="updateTaskStatus('${task.id}', this.value)" class="text-xs bg-transparent border-0 font-medium cursor-pointer outline-none">
+              <option value="${task.status}" selected>${task.status}</option>
+              <option value="New">New</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Updated / Carried Over">Carried Over</option>
+              <option value="Resolved">Resolved</option>
+              <option value="Blocked">Blocked</option>
+            </select>
+          </td>
+          <td class="py-3 px-4 flex flex-wrap items-center gap-1">${trailHtml}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+      lucide.createIcons();
+    }
+
+    function renderDecisions() {
+      const container = document.getElementById('decisionsList');
+      container.innerHTML = '';
+      if (!dashboardData.decisions || dashboardData.decisions.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-400 italic">No formal decisions logged yet.</p>';
+        return;
+      }
+
+      dashboardData.decisions.forEach(d => {
+        const item = document.createElement('div');
+        item.className = "p-3 rounded-lg border border-purple-100 bg-purple-50/40 flex items-start justify-between gap-2";
+        item.innerHTML = `
+          <div>
+            <p class="text-xs font-semibold text-slate-800">${d.text}</p>
+            <p class="text-[11px] text-slate-500 mt-0.5">${d.meeting_name}</p>
+          </div>
+          <button onclick="highlightCitation('${d.meeting_id}', '${d.source_line}', '${d.text.replace(/'/g, "\\'")}', 'Decision')" class="px-2 py-0.5 text-[11px] rounded font-mono bg-purple-100 text-purple-800 border border-purple-200 hover:bg-purple-200 transition shrink-0">
+            ${d.meeting_id}:${d.source_line}
+          </button>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    function renderUnresolved() {
+      const container = document.getElementById('unresolvedList');
+      container.innerHTML = '';
+      if (!dashboardData.unresolved_issues || dashboardData.unresolved_issues.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-400 italic">No unresolved issues or open blockers.</p>';
+        return;
+      }
+
+      dashboardData.unresolved_issues.forEach(u => {
+        const item = document.createElement('div');
+        item.className = "p-3 rounded-lg border border-rose-100 bg-rose-50/40 flex items-start justify-between gap-2";
+        item.innerHTML = `
+          <div>
+            <p class="text-xs font-semibold text-slate-800">${u.text}</p>
+            <p class="text-[11px] text-slate-500 mt-0.5">${u.meeting_name} • Status: <span class="text-rose-700 font-medium">${u.status}</span></p>
+          </div>
+          <button onclick="highlightCitation('${u.meeting_id}', '${u.source_line}', '${u.text.replace(/'/g, "\\'")}', 'Unresolved Issue')" class="px-2 py-0.5 text-[11px] rounded font-mono bg-rose-100 text-rose-800 border border-rose-200 hover:bg-rose-200 transition shrink-0">
+            ${u.meeting_id}:${u.source_line}
+          </button>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    function renderMeetingSelector() {
+      const select = document.getElementById('meetingSelect');
+      select.innerHTML = '';
+      (dashboardData.meetings || []).forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.innerText = `${m.id}: ${m.title}`;
+        if (m.id === currentMeetingId) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    function onMeetingSelectChange() {
+      const select = document.getElementById('meetingSelect');
+      currentMeetingId = select.value;
+      renderTranscriptView(currentMeetingId);
+      clearCitationHighlight();
+    }
+
+    function renderTranscriptView(meetingId) {
+      const box = document.getElementById('transcriptViewBox');
+      box.innerHTML = '';
+
+      const meeting = (dashboardData.meetings || []).find(m => m.id === meetingId);
+      if (!meeting) {
+        box.innerHTML = '<p class="text-xs text-slate-400">Select a meeting to view transcript</p>';
+        return;
+      }
+
+      const lines = meeting.indexed_transcript.split('\n');
+      document.getElementById('transcriptLineCount').innerText = `${lines.length} Lines`;
+
+      lines.forEach(line => {
+        if (!line.trim()) return;
+        const match = line.match(/^\[(L\d+)\]\s*(.*)$/);
+        const lineId = match ? match[1] : '';
+        const lineContent = match ? match[2] : line;
+
+        const row = document.createElement('div');
+        row.id = `transcript-line-${meetingId}-${lineId}`;
+        row.className = "transcript-line px-2 py-1 rounded flex items-start space-x-2 border-l-2 border-transparent transition";
+        row.innerHTML = `
+          <span class="text-slate-400 font-mono font-semibold select-none shrink-0 w-8">[${lineId}]</span>
+          <span class="text-slate-800 flex-1">${escapeHtml(lineContent)}</span>
+        `;
+        box.appendChild(row);
+      });
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function highlightCitation(meetingId, sourceLine, taskTitle, action) {
+      // 1. Switch meeting selector
+      currentMeetingId = meetingId;
+      document.getElementById('meetingSelect').value = meetingId;
+      renderTranscriptView(meetingId);
+
+      // 2. Clear old highlights
+      document.querySelectorAll('.line-highlight').forEach(el => {
+        el.classList.remove('line-highlight', 'animate-glow-pulse');
+      });
+
+      // 3. Find cited line numbers (handles single [L2] or range [L4]-[L5])
+      const lineRefs = sourceLine.match(/L\d+/g) || [];
+
+      let firstTarget = null;
+      lineRefs.forEach(ref => {
+        const el = document.getElementById(`transcript-line-${meetingId}-${ref}`);
+        if (el) {
+          el.classList.add('line-highlight', 'animate-glow-pulse');
+          if (!firstTarget) firstTarget = el;
+        }
+      });
+
+      // 4. Scroll into view
+      if (firstTarget) {
+        firstTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+
+      // 5. Display banner
+      const banner = document.getElementById('citationBanner');
+      banner.classList.remove('hidden');
+      document.getElementById('bannerTitle').innerText = `${meetingId} • Citation ${sourceLine}`;
+      document.getElementById('bannerText').innerText = `Referenced for: "${taskTitle}" (${action})`;
+    }
+
+    function clearCitationHighlight() {
+      document.querySelectorAll('.line-highlight').forEach(el => {
+        el.classList.remove('line-highlight', 'animate-glow-pulse');
+      });
+      document.getElementById('citationBanner').classList.add('hidden');
+    }
+
+    function switchTab(tabId) {
+      ['tasks', 'decisions', 'unresolved', 'prompt'].forEach(t => {
+        document.getElementById(`tabContent-${t}`).classList.add('hidden');
+        document.getElementById(`tabBtn-${t}`).className = "tab-btn px-4 py-2 text-sm font-medium rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center space-x-2";
+      });
+      document.getElementById(`tabContent-${tabId}`).classList.remove('hidden');
+      document.getElementById(`tabBtn-${tabId}`).className = "tab-btn px-4 py-2 text-sm font-semibold rounded-lg bg-brand-50 text-brand-700 transition flex items-center space-x-2";
+      lucide.createIcons();
+    }
+
+    function setFilter(filterType) {
+      currentFilter = filterType;
+      ['ALL', 'Resolved', 'Carried', 'Unassigned'].forEach(f => {
+        const btn = document.getElementById(`filter-${f}`);
+        if (f === filterType) {
+          btn.className = "px-2 py-1 rounded bg-slate-200 text-slate-800 font-semibold";
+        } else {
+          btn.className = "px-2 py-1 rounded hover:bg-slate-100 text-slate-600";
+        }
+      });
+      renderTasks();
+    }
+
+    function filterTasks() {
+      renderTasks();
+    }
+
+    async function updateTaskStatus(taskId, newStatus) {
+      try {
+        await fetch(`/api/tasks/${taskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus })
+        });
+        await fetchDashboard();
+      } catch (err) {
+        console.error("Failed to update status:", err);
+      }
+    }
+
+    async function resetData() {
+      if (confirm("Reset database to initial sample meetings (Meeting 01, 02, 03)?")) {
+        await fetch('/api/reset', { method: 'POST' });
+        await fetchDashboard();
+      }
+    }
+
+    function toggleExportMenu() {
+      const menu = document.getElementById('exportMenu');
+      menu.classList.toggle('hidden');
+    }
+
+    // Modal Handling
+    function openNewMeetingModal() {
+      document.getElementById('newMeetingModal').classList.remove('hidden');
+      document.getElementById('newMeetingDate').value = new Date().toISOString().split('T')[0];
+      lucide.createIcons();
+    }
+
+    function closeNewMeetingModal() {
+      document.getElementById('newMeetingModal').classList.add('hidden');
+    }
+
+    function loadSampleText() {
+      document.getElementById('newMeetingTitle').value = "API Migration Security & Staging";
+      document.getElementById('newMeetingTranscript').value = 
+`Alex: Welcome to sprint review 4.
+Priya: I can coordinate staging smoke tests by October 22nd.
+Rahul: I will handle the load testing scripts by October 25th.
+Alex: Decision: Selected cloud hosting partner for deployment.
+Alex: We didn't decide on the disaster recovery backup vendor yet. Unresolved.`;
+    }
+
+    async function submitNewMeeting() {
+      const title = document.getElementById('newMeetingTitle').value.trim();
+      const date = document.getElementById('newMeetingDate').value;
+      const rawTranscript = document.getElementById('newMeetingTranscript').value.trim();
+      const autoExtract = document.getElementById('autoAuditCheckbox').checked;
+
+      if (!title || !rawTranscript) {
+        alert("Please enter both meeting title and transcript content.");
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/meetings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: title,
+            date: date,
+            raw_transcript: rawTranscript,
+            auto_extract: autoExtract
+          })
+        });
+        const data = await res.json();
+        closeNewMeetingModal();
+        currentMeetingId = data.meeting_id;
+        await fetchDashboard();
+      } catch (err) {
+        alert("Error processing meeting: " + err);
+      }
+    }
+
+    // Init
+    window.addEventListener('DOMContentLoaded', () => {
+      fetchDashboard();
+      fetchPrompt();
+      // Close dropdowns on outside click
+      window.addEventListener('click', (e) => {
+        if (!e.target.closest('#exportMenu') && !e.target.closest('button[onclick="toggleExportMenu()"]')) {
+          document.getElementById('exportMenu').classList.add('hidden');
+        }
+      });
+    });
+  </script>
+</body>
+</html>
